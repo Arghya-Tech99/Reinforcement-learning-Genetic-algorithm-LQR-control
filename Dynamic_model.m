@@ -1,6 +1,10 @@
 % The 'load' command imports 'ag' and 't' from the .mat file 
 % and places them directly into this script's workspace.
 load('seismic_input.mat', 'ag', 't');
+t_column = t(:);
+ag_column = ag(:);
+
+input_excite = [t_column, ag_column];
 
 n = 10; % 10-storied shear building
 
@@ -44,7 +48,7 @@ Cs = diag(main_diag_C, 0) + ...  % Main diagonal (k=0)
 Lambda = ones(n, 1);
 
 % DEFINING Gamma - Control force location matrix
-m = 1; % Number of MR Dampers used = m = 1
+mr = 1; % Number of MR Dampers used = mr = 1
 Gamma = [1; 0; 0; 0; 0; 0; 0; 0; 0; 0];
 
 % System Matrix A (2n x 2n)
@@ -56,28 +60,28 @@ A = [A_top; A_bottom];
 
 % Seismic Input Matrix E (2n x 1)
 E_top = zeros(n, 1);
-E_bottom = -Ms \ Lambda; 
+E_bottom = -Lambda; 
 E = [E_top; E_bottom];
 
-% Control Input Matrix Bc (2n x m)
-Bc_top = zeros(n, m);
+% Control Input Matrix Bc (2n x mr)
+Bc_top = zeros(n, mr);
 Bc_bottom = -Ms \ Gamma;
 Bc = [Bc_top; Bc_bottom];
 
-% Concatenate E and Bc into a single input matrix B_total (20x2)
+% Concatenate E and Bc into a single input matrix (2n x (mr+1))
 Bce = [Bc, E];
 
-% Positions of the vectors of control forces Dc (3n x m)
-Dc_top = zeros(n, m);
-Dc_bottom = -Ms \ Gamma;
-Dc = [Dc_top, Dc_bottom];
-
-% Positions of the vectors of seismic acclerations F (3n x 1)
+% Positions of the vectors of seismic acclerations F (2n x 1)
 F_top = zeros(n, 1);
-F_bottom = - Lambda;
-F = [F_top, F_bottom];
+F_bottom = -Lambda; 
+F = [F_top; F_bottom];
 
-% Concatenate F and Dc into a single input matrix Dcf (30x2)
+% Positions of the vectors of control forces Dc (2n x mr)
+Dc_top = zeros(n, mr);
+Dc_bottom = -Ms \ Gamma;
+Dc = [Dc_top; Dc_bottom];
+
+% Concatenate F and Dc into a single matrix (2n x (mr+1))
 Dcf = [Dc, F];
 
 % Defining the input state u(t)
