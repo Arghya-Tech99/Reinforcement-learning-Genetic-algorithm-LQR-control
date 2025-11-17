@@ -1,5 +1,4 @@
 function [best_Q, best_R, training_info] = RLGA_Optimization_Simple(config, building, state_space)
-% BALANCED RLGA optimization with proper learning and stable GA
 
     fprintf('Starting BALANCED RLGA optimization...\n');
     
@@ -47,11 +46,11 @@ function [best_Q, best_R, training_info] = RLGA_Optimization_Simple(config, buil
             training_info.improvement_history(gen) = improvement;
             
             if improvement > 0
-                fprintf('✓ GA Improvement: +%.6f\n', improvement);
+                fprintf('GA Improvement: +%.6f\n', improvement);
             elseif improvement == 0
                 fprintf('= GA No change\n');
             else
-                fprintf('✗ GA Degradation: %.6f\n', improvement);
+                fprintf('GA Degradation: %.6f\n', improvement);
             end
         end
         
@@ -72,7 +71,7 @@ function [best_Q, best_R, training_info] = RLGA_Optimization_Simple(config, buil
     best_Q = 10^best_log_params(1) * eye(n_states);
     best_R = 10^best_log_params(2) * eye(n_controls);
     
-    fprintf('\n=== BALANCED RLGA Optimization Complete ===\n');
+    fprintf('\n*** BALANCED RLGA Optimization Complete ***\n');
     fprintf('Final GA fitness: %.6f\n', min(fitness));
 end
 
