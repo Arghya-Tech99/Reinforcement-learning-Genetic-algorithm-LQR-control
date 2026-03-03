@@ -1,6 +1,8 @@
 %% MONTE CARLO SIMULATION FOR RL-GA OPTIMIZED CO-LQR CONTROLLER
 % Using Eurocode 8 drift criterion (h/200 = 0.015 m for 3m story height)
 % Modified to ensure ALL floors meet the criterion strictly
+% Generates 5 figures: Peak Drift Time History, Peak Drift Distribution Histogram,
+% Story Drift Profile, MR Damper Force Time History, and Robustness Heatmaps
 
 clear; clc; close all;
 
@@ -74,8 +76,8 @@ sample_uncertainties = @() struct(...
 );
 
 %% ==================== 5. MONTE CARLO SETTINGS ====================
-Nsim = 6;                   % Number of Monte Carlo runs. TRIAL = 6, ACTUAL = 300
-results = NaN(Nsim, 2);       % [peak_drift, peak_force]
+Nsim = 1200;                   % Number of Monte Carlo runs
+results = NaN(Nsim, 2);        % [peak_drift, peak_force]
 successful = 0;
 
 % Storage for all runs data
@@ -268,69 +270,106 @@ fprintf('Eurocode 8 drift limit (h/200): %.4f m\n', driftLimit);
 fprintf('Runs with ALL floors compliant: %d\n', successful);
 fprintf('Success rate (all floors): %.1f%%\n', 100*successful/Nsim);
 
-%% ==================== 8. REQUIRED OUTPUT PLOTS ====================
+%% ==================== 8. FIVE REQUIRED OUTPUT PLOTS ====================
 
 %--------------------------------------------------------------------------
-% FIGURE 1: Peak Drift Time History (UPDATED as per request)
+% FIGURE 1: Peak Drift Time History 
 % X-axis: Time (seconds), Y-axis: Peak Drift (m)
 %--------------------------------------------------------------------------
 figure('Position', [100, 100, 1000, 600]);
 
-% Select three representative runs: best, median, and worst in terms of peak drift
+% Select best and worst runs in terms of peak drift
 [~, drift_sorted_idx] = sort(valid_peak_drifts);
 best_drift_idx = drift_sorted_idx(1);                    % Lowest peak drift
-median_drift_idx = drift_sorted_idx(round(length(drift_sorted_idx)/2));  % Median
 worst_drift_idx = drift_sorted_idx(end);                  % Highest peak drift
 
-% Plot all three on the same figure
+% Plot both cases on the same figure
 hold on;
 
-% Best case (lowest peak drift) - Blue
-plot(t, valid_drift_histories{best_drift_idx}, 'b-', 'LineWidth', 1.2);
+% Best case (lowest peak drift) - Blue with thicker line for visibility
+plot(t, valid_drift_histories{best_drift_idx}, 'b-', 'LineWidth', 1.5);
 
-% Median case - Green
-plot(t, valid_drift_histories{median_drift_idx}, 'g-', 'LineWidth', 1.2);
+% Worst case (highest peak drift) - Red with thicker line for visibility
+plot(t, valid_drift_histories{worst_drift_idx}, 'r-', 'LineWidth', 1.5);
 
-% Worst case (highest peak drift) - Red
-plot(t, valid_drift_histories{worst_drift_idx}, 'r-', 'LineWidth', 1.2);
+% Add horizontal line for Eurocode 8 drift limit - Make it more visible
+yline(driftLimit, 'k--', 'LineWidth', 3, 'Color', [0.5 0.5 0.5]);
 
-% Add horizontal line for Eurocode 8 drift limit
-yline(driftLimit, 'k--', 'LineWidth', 2.5);
+% Add labels and title with larger fonts
+xlabel('Time (seconds)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Peak Drift (m)', 'FontSize', 12, 'FontWeight', 'bold');
+title('Peak Drift Time History - Best vs Worst Case Performance', 'FontSize', 15, 'FontWeight', 'bold');
 
-% Add labels and title
-xlabel('Time (seconds)', 'FontSize', 13, 'FontWeight', 'bold');
-ylabel('Peak Drift (m)', 'FontSize', 13, 'FontWeight', 'bold');
-title('Peak Drift Time History - Representative Runs', 'FontSize', 14, 'FontWeight', 'bold');
-legend(sprintf('Best Case (Peak: %.4f m)', valid_peak_drifts(best_drift_idx)), ...
-       sprintf('Median Case (Peak: %.4f m)', valid_peak_drifts(median_drift_idx)), ...
-       sprintf('Worst Case (Peak: %.4f m)', valid_peak_drifts(worst_drift_idx)), ...
-       sprintf('Eurocode 8 Limit (%.4f m)', driftLimit), ...
-       'Location', 'best');
+% Create legend with clear labels
+legend({sprintf('Best Case (Peak: %.4f m)', valid_peak_drifts(best_drift_idx)), ...
+        sprintf('Worst Case (Peak: %.4f m)', valid_peak_drifts(worst_drift_idx)), ...
+        sprintf('Eurocode 8 Limit (%.4f m)', driftLimit)}, ...
+        'Location', 'best', 'FontSize', 12, 'FontWeight', 'bold');
+
 grid on;
 xlim([0 T_total]);
-ylim([0 max(valid_peak_drifts)*1.1]);
+ylim([0 driftLimit * 1.1]);  % Set y-limit slightly above the drift limit
 
 % Add annotation showing margin of safety for worst case
-safety_margin = 100 * (1 - valid_peak_drifts(worst_drift_idx) / driftLimit);
-annotation('textbox', [0.15, 0.8, 0.3, 0.08], ...
-           'String', sprintf('Worst-case safety margin: %.1f%% below limit', safety_margin), ...
-           'BackgroundColor', 'white', 'EdgeColor', 'green', ...
-           'FontSize', 11, 'Color', 'green', 'FontWeight', 'bold');
+% safety_margin = 100 * (1 - valid_peak_drifts(worst_drift_idx) / driftLimit);
+% annotation('textbox', [0.15, 0.8, 0.3, 0.08], ...
+%            'String', sprintf('Worst-case safety margin: %.1f%% below limit', safety_margin), ...
+%            'BackgroundColor', 'white', 'EdgeColor', 'green', ...
+%            'FontSize', 12, 'Color', 'green', 'FontWeight', 'bold', 'LineWidth', 2);
 
-% Add time of peak occurrence
+% Add time of peak occurrence for worst case
 [~, peak_time_idx] = max(valid_drift_histories{worst_drift_idx});
 peak_time = t(peak_time_idx);
 annotation('textbox', [0.15, 0.7, 0.25, 0.06], ...
-           'String', sprintf('Peak occurs at t = %.2f s', peak_time), ...
+           'String', sprintf('Worst-case peak at t = %.2f s', peak_time), ...
            'BackgroundColor', 'white', 'EdgeColor', 'red', ...
-           'FontSize', 10, 'Color', 'red');
+           'FontSize', 7.5, 'Color', 'red', 'FontWeight', 'bold');
 
-% Save figure
+% Save figure with high resolution
 saveas(gcf, 'Eurocode8_Peak_Drift_TimeHistory.png');
-fprintf('✓ Saved: Eurocode8_Peak_Drift_TimeHistory.png\n');
+fprintf('✓ Saved: Eurocode8_Peak_Drift_TimeHistory.png (Best and Worst cases only)\n');
 
 %--------------------------------------------------------------------------
-% FIGURE 2: Story Drift Profile (Mean ± Std for each floor) with Eurocode 8 limit
+% FIGURE 2: Peak Drift Distribution Histogram (NEW ADDITION)
+% X-axis: Peak Drift (m), Y-axis: Frequency
+%--------------------------------------------------------------------------
+figure('Position', [100, 100, 900, 600]);
+
+% Create histogram
+histogram(valid_peak_drifts, 30, 'FaceColor', [0.2 0.6 0.8], 'EdgeColor', 'k', 'LineWidth', 0.5);
+hold on;
+
+% Add vertical line for Eurocode 8 limit
+xline(driftLimit, 'r--', 'LineWidth', 1.5);
+
+% Add vertical line for mean value
+xline(mean(valid_peak_drifts), 'g-', 'LineWidth', 1.5);
+
+xlabel('Peak Drift (m)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Frequency', 'FontSize', 12, 'FontWeight', 'bold');
+title('Peak Drift Distribution (All Floors Compliant)', 'FontSize', 15, 'FontWeight', 'bold');
+legend('Simulations', sprintf('Eurocode 8 Limit (%.4f m)', driftLimit), ...
+       sprintf('Mean (%.4f m)', mean(valid_peak_drifts)), 'Location', 'best');
+grid on;
+
+% Add statistics text box
+% text_str = {sprintf('Eurocode 8 Limit: %.4f m', driftLimit);
+%             sprintf('Mean: %.4f m', mean(valid_peak_drifts));
+%             sprintf('Std Dev: %.4f m', std(valid_peak_drifts));
+%             sprintf('Max: %.4f m', max(valid_peak_drifts));
+%             sprintf('Min: %.4f m', min(valid_peak_drifts));
+%             sprintf('95%% CI: [%.4f, %.4f] m', prctile(valid_peak_drifts,2.5), prctile(valid_peak_drifts,97.5));
+%             sprintf('Success Rate: %.1f%%', 100*successful/Nsim)};
+% annotation('textbox', [0.65, 0.6, 0.25, 0.22], 'String', text_str, ...
+%            'BackgroundColor', 'white', 'EdgeColor', 'black', 'FontSize', 10, ...
+%            'HorizontalAlignment', 'left');
+
+% Save figure
+saveas(gcf, 'Eurocode8_Peak_Drift_Distribution.png');
+fprintf('✓ Saved: Eurocode8_Peak_Drift_Distribution.png\n');
+
+%--------------------------------------------------------------------------
+% FIGURE 3: Story Drift Profile (Mean ± Std for each floor) with Eurocode 8 limit
 %--------------------------------------------------------------------------
 figure('Position', [100, 100, 900, 600]);
 
@@ -341,7 +380,7 @@ max_floor_drifts = max(valid_floor_drifts, [], 1);
 min_floor_drifts = min(valid_floor_drifts, [], 1);
 
 % Create error bar plot
-errorbar(1:n, mean_floor_drifts, std_floor_drifts, 'o-', 'LineWidth', 2.5, ...
+errorbar(1:n, mean_floor_drifts, std_floor_drifts, 'o-', 'LineWidth', 1.5, ...
          'MarkerSize', 10, 'MarkerFaceColor', [0.2 0.6 0.8], 'Color', [0 0 0.5]);
 hold on;
 
@@ -351,11 +390,11 @@ yline(driftLimit, 'r--', 'LineWidth', 3);
 % Add min and max as shaded region
 x_fill = [1:n, fliplr(1:n)];
 y_fill = [max_floor_drifts, fliplr(min_floor_drifts)];
-fill(x_fill, y_fill, [0.8 0.9 1], 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+fill(x_fill, y_fill, [0.9 0.9 0], 'FaceAlpha', 0.3, 'EdgeColor', 'none');
 
-xlabel('Floor Number', 'FontSize', 13, 'FontWeight', 'bold');
-ylabel('Peak Drift (m)', 'FontSize', 13, 'FontWeight', 'bold');
-title('Story Drift Profile - All Floors Meet Eurocode 8', 'FontSize', 14, 'FontWeight', 'bold');
+xlabel('Floor Number', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Peak Drift (m)', 'FontSize', 12, 'FontWeight', 'bold');
+title('Story Drift Profile', 'FontSize', 15, 'FontWeight', 'bold');
 legend('Mean ± Std Dev', sprintf('Eurocode 8 Limit (%.4f m)', driftLimit), ...
        'Min-Max Range', 'Location', 'best');
 grid on;
@@ -383,7 +422,7 @@ saveas(gcf, 'Eurocode8_Story_Drift_Profile.png');
 fprintf('✓ Saved: Eurocode8_Story_Drift_Profile.png\n');
 
 %--------------------------------------------------------------------------
-% FIGURE 3: MR Damper Force Time History 
+% FIGURE 4: MR Damper Force Time History 
 %--------------------------------------------------------------------------
 figure('Position', [100, 100, 1000, 600]);
 
@@ -397,22 +436,22 @@ worst_force_idx = force_sorted_idx(end);                  % Highest peak force
 hold on;
 
 % Best case (lowest peak force) - Blue
-plot(t, valid_force_histories{best_force_idx}/1000, 'b-', 'LineWidth', 1.2);
+plot(t, valid_force_histories{best_force_idx}/100, 'b-', 'LineWidth', 1.2); % Division by 1000 has been undone
 
 % Median case - Green
-plot(t, valid_force_histories{median_force_idx}/1000, 'g-', 'LineWidth', 1.2);
+plot(t, valid_force_histories{median_force_idx}/100, 'g-', 'LineWidth', 1.2); % Division by 1000 has been undone
 
 % Worst case (highest peak force) - Red
-plot(t, valid_force_histories{worst_force_idx}/1000, 'r-', 'LineWidth', 1.2);
+plot(t, valid_force_histories{worst_force_idx}/100, 'r-', 'LineWidth', 1.2); % Division by 1000 has been undone
 
 % Add red dotted line at 200 kN (200,000 N)
-yline(200, 'r--', 'LineWidth', 2.5);
-yline(-200, 'r--', 'LineWidth', 2.5);  % Also add negative limit for symmetry
+yline(200, 'r--', 'LineWidth', 1.5);
+yline(-200, 'r--', 'LineWidth', 1.5);  % Also add negative limit for symmetry
 
 % Add labels and title
-xlabel('Time (seconds)', 'FontSize', 13, 'FontWeight', 'bold');
-ylabel('MR Damper Force (kN)', 'FontSize', 13, 'FontWeight', 'bold');
-title('MR Damper Force Time History - Representative Runs', 'FontSize', 14, 'FontWeight', 'bold');
+xlabel('Time (seconds)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('MR Damper Force (kN)', 'FontSize', 12, 'FontWeight', 'bold');
+title('MR Damper Force Time History - Representative Runs', 'FontSize', 15, 'FontWeight', 'bold');
 legend(sprintf('Best Case (Peak: %.1f kN)', valid_peak_forces(best_force_idx)), ...
        sprintf('Median Case (Peak: %.1f kN)', valid_peak_forces(median_force_idx)), ...
        sprintf('Worst Case (Peak: %.1f kN)', valid_peak_forces(worst_force_idx)), ...
@@ -426,14 +465,14 @@ capacity_utilization = 100 * valid_peak_forces(worst_force_idx) / 200;
 annotation('textbox', [0.15, 0.8, 0.3, 0.08], ...
            'String', sprintf('Worst-case capacity utilization: %.1f%%', capacity_utilization), ...
            'BackgroundColor', 'white', 'EdgeColor', 'red', ...
-           'FontSize', 11, 'Color', 'red', 'FontWeight', 'bold');
+           'FontSize', 6, 'Color', 'red', 'FontWeight', 'bold');
 
 % Save figure
 saveas(gcf, 'Eurocode8_MR_Damper_Force_TimeHistory.png');
 fprintf('✓ Saved: Eurocode8_MR_Damper_Force_TimeHistory.png\n');
 
 %--------------------------------------------------------------------------
-% FIGURE 4: Robustness Heatmaps (2D histograms of drift vs uncertain parameters)
+% FIGURE 5: Robustness Heatmaps (2D histograms of drift vs uncertain parameters)
 %--------------------------------------------------------------------------
 figure('Position', [100, 100, 1400, 1000]);
 
@@ -483,15 +522,28 @@ for param_idx = 1:4
     
     xlabel(param_names{param_idx}, 'FontSize', 12, 'FontWeight', 'bold');
     ylabel('Peak Drift (m)', 'FontSize', 12, 'FontWeight', 'bold');
-    title(sprintf('Robustness: Drift vs %s', param_names{param_idx}), 'FontSize', 13, 'FontWeight', 'bold');
+    title(sprintf('Robustness: Drift vs %s', param_names{param_idx}), 'FontSize', 15, 'FontWeight', 'bold');
     
-    % Calculate correlation
-    [corr_coef, p_value] = corrcoef(x_data, y_data);
+    % Calculate correlation with error handling
+    try
+        [corr_coef, p_value] = corrcoef(x_data, y_data);
+        % Check if corr_coef is a valid 2x2 matrix
+        if size(corr_coef, 1) == 2 && size(corr_coef, 2) == 2
+            corr_text = sprintf('Correlation: ρ = %.3f', corr_coef(1,2));
+            p_text = sprintf('p-value: %.3e', p_value(1,2));
+        else
+            corr_text = 'Correlation: N/A';
+            p_text = 'p-value: N/A';
+        end
+    catch
+        corr_text = 'Correlation: N/A';
+        p_text = 'p-value: N/A';
+    end
     
-    % Add statistics
-    text_str = {sprintf('Correlation: ρ = %.3f', corr_coef(1,2));
-                sprintf('p-value: %.3e', p_value(1,2))};
+    % Add statistics text box
+    text_str = {corr_text; p_text};
     
+    % Position the text box in the upper left corner of the subplot
     text(0.05, 0.9, text_str, 'Units', 'normalized', 'Color', 'white', 'FontSize', 10, ...
          'BackgroundColor', 'black', 'EdgeColor', 'white', 'FontWeight', 'bold');
     
@@ -502,10 +554,6 @@ end
 
 sgtitle('Robustness Heatmaps - All Runs Fully Eurocode 8 Compliant', ...
         'FontSize', 16, 'FontWeight', 'bold');
-
-% Save figure
-saveas(gcf, 'Eurocode8_Robustness_Heatmaps.png');
-fprintf('✓ Saved: Eurocode8_Robustness_Heatmaps.png\n');
 
 %% ==================== 9. COMPREHENSIVE SUMMARY ====================
 fprintf('\n========== EUROCODE 8 COMPLIANCE SUMMARY ==========\n');
@@ -521,6 +569,7 @@ fprintf('Mean peak drift: %.4f m (%.1f%% of limit)\n', mean(valid_peak_drifts), 
 fprintf('Std deviation: %.4f m\n', std(valid_peak_drifts));
 fprintf('Maximum peak drift: %.4f m (%.1f%% of limit)\n', max(valid_peak_drifts), 100*max(valid_peak_drifts)/driftLimit);
 fprintf('Minimum peak drift: %.4f m (%.1f%% of limit)\n', min(valid_peak_drifts), 100*min(valid_peak_drifts)/driftLimit);
+fprintf('95th percentile: %.4f m (%.1f%% of limit)\n', prctile(valid_peak_drifts,95), 100*prctile(valid_peak_drifts,95)/driftLimit);
 
 fprintf('\n--- Control Force Statistics ---\n');
 fprintf('Mean peak force: %.1f kN (%.1f%% of capacity)\n', mean(valid_peak_forces), 100*mean(valid_peak_forces)/200);
@@ -540,14 +589,15 @@ fprintf('   ALL floors within Eurocode 8 drift limit (h/200 = %.4f m) in %.1f%% 
 fprintf('   MR damper operates within capacity (200 kN) in all cases.\n');
 
 %% ==================== 10. SAVE RESULTS ====================
-% Save only the essential data for the four plots
-save('Eurocode8_MC_Results_Compliant.mat', 'valid_peak_drifts', 'valid_peak_forces', ...
+% Save only the essential data for the five plots
+save('Eurocode8_MC_Results_Complete.mat', 'valid_peak_drifts', 'valid_peak_forces', ...
      'valid_floor_drifts', 'valid_params', 'driftLimit', 'mr_max_force', ...
      'n', 'successful', 'Nsim', 'storyHeight', 't', 'valid_force_histories', 'valid_drift_histories');
 
-fprintf('\n✅ Results saved to Eurocode8_MC_Results_Compliant.mat\n');
-fprintf('✅ Four required figures saved as PNG files:\n');
+fprintf('\n✅ Results saved to Eurocode8_MC_Results_Complete.mat\n');
+fprintf('✅ Five required figures saved as PNG files:\n');
 fprintf('   1. Eurocode8_Peak_Drift_TimeHistory.png\n');
-fprintf('   2. Eurocode8_Story_Drift_Profile.png\n');
-fprintf('   3. Eurocode8_MR_Damper_Force_TimeHistory.png\n');
-fprintf('   4. Eurocode8_Robustness_Heatmaps.png\n');
+fprintf('   2. Eurocode8_Peak_Drift_Distribution.png\n');
+fprintf('   3. Eurocode8_Story_Drift_Profile.png\n');
+fprintf('   4. Eurocode8_MR_Damper_Force_TimeHistory.png\n');
+fprintf('   5. Eurocode8_Robustness_Heatmaps.png\n');
